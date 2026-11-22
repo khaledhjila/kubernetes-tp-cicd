@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'khaledhjila/cicd-flask-app'
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
     }
 
     stages {
@@ -27,11 +28,27 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
-                            )]) {
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKERHUB_USER',
+                    passwordVariable: 'DOCKERHUB_TOKEN'
+                )]) {
                     sh '''
                         set +x
                         echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
                         docker push "$DOCKER_IMAGE:latest"
                         docker logout
+                    '''
+                }
+            }
+        }
 
-
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                    kubectl -n cicd-demo set image deployment/cicd-flask-app flask-container=$DOCKER_IMAGE:latest
+                    kubectl rollout status deployment/cicd-flask-app -n cicd-demo
+                '''
+            }
+        }
+    }
+}
